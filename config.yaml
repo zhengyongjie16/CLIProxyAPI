@@ -16,7 +16,8 @@ debug: true
 request-log: true
 logging-to-file: true
 usage-statistics-enabled: true
-proxy-url: ""
+proxy-url: "https://6ea08df8-93b3-11ef-8967-f23c91cfbbc9:6ea08df8-93b3-11ef-8967-f23c91cfbbc9@5c3956ce-tkrhc0-u0nir9-1e\
+  rtb.sg2.oshuawei.com:5228"
 request-retry: 3
 max-retry-credentials: 3
 max-retry-interval: 30
