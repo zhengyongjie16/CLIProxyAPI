@@ -14,6 +14,7 @@ import (
 // A successful v8 migration also synchronizes cfg's OAuth scope for runtime snapshots.
 func SaveConfigPreserveComments(configFile string, cfg *Config, migrateV8 ...bool) error {
 	persistCfg := cfg
+	migrating := len(migrateV8) > 0 && migrateV8[0]
 	// Load original YAML as a node tree to preserve comments and ordering.
 	data, err := os.ReadFile(configFile)
 	if err != nil {
@@ -54,15 +55,18 @@ func SaveConfigPreserveComments(configFile string, cfg *Config, migrateV8 ...boo
 		return fmt.Errorf("expected generated root mapping node")
 	}
 
-	// Remove deprecated sections before merging back the sanitized config.
-	removeLegacyAuthBlock(original.Content[0])
+	// Keep obsolete roots until v8 migration can preserve them as comments.
+	if !migrating {
+		removeLegacyAuthBlock(original.Content[0])
+		removeRemovedIntegrationKeys(original.Content[0])
+		removeLegacyGenerativeLanguageKeys(original.Content[0])
+	}
 	removeLegacyOpenAICompatAPIKeys(original.Content[0])
-	removeRemovedIntegrationKeys(original.Content[0])
-	removeLegacyGenerativeLanguageKeys(original.Content[0])
 
 	pruneMappingToGeneratedKeys(original.Content[0], generated.Content[0], "oauth-excluded-models")
 	pruneMappingToGeneratedKeys(original.Content[0], generated.Content[0], "oauth-model-alias")
 	pruneMappingToGeneratedKeys(original.Content[0], generated.Content[0], "oauth-request-scoped-errors")
+	pruneMappingToGeneratedKeys(original.Content[0], generated.Content[0], "oauth-settings")
 	replacePluginConfigsSubtree(original.Content[0], generated.Content[0])
 
 	// Merge generated into original in-place, preserving comments/order of existing nodes.
@@ -85,7 +89,7 @@ func SaveConfigPreserveComments(configFile string, cfg *Config, migrateV8 ...boo
 	}
 	data = NormalizeCommentIndentation(buf.Bytes())
 	var migrated *Config
-	if len(migrateV8) > 0 && migrateV8[0] {
+	if migrating {
 		data, _, err = NormalizeConfigLayout(data, true)
 		if err != nil {
 			return err
@@ -744,7 +748,7 @@ func pruneMappingToGeneratedKeys(dstRoot, srcRoot *yaml.Node, keyPath ...string)
 	if srcIdx < 0 {
 		// Keep explicit OAuth maps when the last channel is removed. Their presence
 		// must survive saves and override legacy fields when restored to the v8 layout.
-		if key == "oauth-excluded-models" || key == "oauth-model-alias" || key == "oauth-request-scoped-errors" {
+		if key == "oauth-excluded-models" || key == "oauth-model-alias" || key == "oauth-request-scoped-errors" || key == "oauth-settings" {
 			dstRoot.Content[dstIdx+1] = &yaml.Node{Kind: yaml.MappingNode, Tag: "!!map"}
 			return
 		}
